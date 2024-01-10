@@ -2,6 +2,7 @@ import abc
 from typing import Type, List, Optional
 
 import aiohttp
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
 from schemas.operation import OperationSchema
@@ -59,7 +60,7 @@ class APIHandler(AbstractAPIHandler):
     async def post_object(self, object_schema: Type[BaseModel], posting_object: Type[BaseModel]) -> Optional[BaseModel]:
         url = self.object_url[object_schema]
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=posting_object.model_dump()) as resp:
+            async with session.post(url, json=jsonable_encoder(posting_object.model_dump())) as resp:
                 response_json = await resp.json()
                 obj = object_schema(**response_json)
                 return obj
@@ -74,7 +75,7 @@ class APIHandler(AbstractAPIHandler):
             Optional[BaseModel]:
         url = self.object_url[object_schema]
         async with aiohttp.ClientSession() as session:
-            async with session.put(url + f'/{object_id}', json=updated_object.model_dump()) as resp:
+            async with session.put(url + f'/{object_id}', json=jsonable_encoder(updated_object.model_dump())) as resp:
                 response_json = await resp.json()
                 obj = object_schema(**response_json)
                 return obj
