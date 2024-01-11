@@ -19,7 +19,7 @@ router = Router()
 
 @router.message(Command('add_trade'))
 async def add_trade_handler(message: Message, state: FSMContext):
-    await state.set_state(AddForm.portfolio_name)
+    await state.set_state(AddForm.trade_portfolio_name)
     portfolios = await get_user_portfolios(message.from_user.id)
     keyboard = create_portfolio_keyboard(portfolios)
     await message.answer(
@@ -28,7 +28,7 @@ async def add_trade_handler(message: Message, state: FSMContext):
     )
 
 
-@router.message(AddForm.portfolio_name)
+@router.message(AddForm.trade_portfolio_name)
 async def get_portfolio_name_handler(message: Message, state: FSMContext):
     portfolio = await get_portfolio_by_name(message.text, message.from_user.id)
     await state.update_data(portfolio_id=portfolio.id)
@@ -88,7 +88,7 @@ async def get_trade_currency_handler(message: Message, state: FSMContext):
 
 @router.message(Command('get_trades'))
 async def get_trades_handler(message: Message, state: FSMContext):
-    await state.set_state(GetForm.portfolio_name)
+    await state.set_state(GetForm.trade_portfolio_name)
     portfolios = await get_user_portfolios(message.from_user.id)
     keyboard = create_portfolio_keyboard(portfolios)
     await message.answer(
@@ -97,7 +97,7 @@ async def get_trades_handler(message: Message, state: FSMContext):
     )
 
 
-@router.message(GetForm.portfolio_name)
+@router.message(GetForm.trade_portfolio_name)
 async def get_trades_portfolio_name_handler(message: Message, state: FSMContext):
     portfolio = await get_portfolio_by_name(message.text, message.from_user.id)
     trades = await get_trades_list(portfolio_id=portfolio.id)
@@ -131,7 +131,7 @@ async def get_trades_portfolio_name_handler(message: Message, state: FSMContext)
 
 @router.message(Command('delete_trade'))
 async def delete_trade_handler(message: Message, state: FSMContext):
-    await state.set_state(DeleteForm.portfolio_name)
+    await state.set_state(DeleteForm.trade_portfolio_name)
     portfolios = await get_user_portfolios(message.from_user.id)
     keyboard = create_portfolio_keyboard(portfolios)
     await message.answer(
@@ -140,7 +140,7 @@ async def delete_trade_handler(message: Message, state: FSMContext):
     )
 
 
-@router.message(DeleteForm.portfolio_name)
+@router.message(DeleteForm.trade_portfolio_name)
 async def getting_deleting_trade_portfolio_name_handler(message: Message, state: FSMContext):
     await state.set_state(DeleteForm.trade_id)
     portfolio = await get_portfolio_by_name(name=message.text,
@@ -167,7 +167,7 @@ async def deleting_portfolio_trade_handler(message: Message, state: FSMContext):
 # ---------- Delete trades
 @router.message(Command('update_trade'))
 async def update_trade_handler(message: Message, state: FSMContext):
-    await state.set_state(UpdateForm.portfolio_name)
+    await state.set_state(UpdateForm.trade_portfolio_name)
     portfolios = await get_user_portfolios(message.from_user.id)
     keyboard = create_portfolio_keyboard(portfolios)
     await message.answer(
@@ -176,7 +176,7 @@ async def update_trade_handler(message: Message, state: FSMContext):
     )
 
 
-@router.message(UpdateForm.portfolio_name)
+@router.message(UpdateForm.trade_portfolio_name)
 async def getting_updating_portfolio_name_handler(message: Message, state: FSMContext):
     await state.set_state(UpdateForm.trade_id)
     portfolio = await get_portfolio_by_name(
