@@ -34,8 +34,20 @@ async def update_portfolio(name: str, user_id: int, new_name: str, new_deposited
     await APIHandler().update_object(PortfolioSchema, portfolio.id, updated_portfolio)
 
 
-async def get_trades_by_portfolio_id(portfolio_id: int, user_id: int) -> List[BaseModel]:
-    trades = await APIHandler().object_list(TradeSchema,
-                                            portfolio_id=portfolio_id,
-                                            user_id=user_id)
+async def get_trade(trade_id: int) -> BaseModel:
+    trade = await APIHandler().get_object(TradeSchema, trade_id)
+    return trade
+
+
+async def get_trades_list(**kwargs) -> List[BaseModel]:
+    trades = await APIHandler().object_list(TradeSchema, **kwargs)
     return trades
+
+
+async def delete_trade(trade_id: int) -> None:
+    await APIHandler().delete_object(TradeSchema, trade_id)
+
+
+async def update_trade(trade_id: int, trade: TradeSchema) -> BaseModel:
+    trade = await APIHandler().update_object(TradeSchema, trade_id, trade)
+    return trade

@@ -49,7 +49,7 @@ class APIHandler(AbstractAPIHandler):
     def __init__(self):
         super().__init__()
 
-    async def get_object(self, object_schema: Type[BaseModel], object_id: int) -> Optional[Type[BaseModel]]:
+    async def get_object(self, object_schema: Type[BaseModel], object_id: int) -> Optional[BaseModel]:
         url = self.object_url[object_schema]
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
