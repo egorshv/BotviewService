@@ -3,6 +3,7 @@ from typing import List
 from pydantic import BaseModel
 
 from schemas.portfolio import PortfolioSchema
+from schemas.state import StateSchema
 from schemas.trade import TradeSchema
 from services.APIHandler import APIHandler
 
@@ -51,3 +52,17 @@ async def delete_trade(trade_id: int) -> None:
 async def update_trade(trade_id: int, trade: TradeSchema) -> BaseModel:
     trade = await APIHandler().update_object(TradeSchema, trade_id, trade)
     return trade
+
+
+async def get_states_list(**kwargs) -> List[BaseModel]:
+    states = await APIHandler().object_list(StateSchema, **kwargs)
+    return states
+
+
+async def delete_state(state_id: int) -> None:
+    await APIHandler().delete_object(StateSchema, state_id)
+
+
+async def update_state(state_id: int, state: StateSchema) -> BaseModel:
+    state = await APIHandler().update_object(StateSchema, state_id, state)
+    return state

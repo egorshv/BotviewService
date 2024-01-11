@@ -3,7 +3,7 @@ import asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 
-from routes import default, portfolio, trade
+from routes import default, portfolio, trade, state
 
 from settings import TOKEN
 
@@ -15,6 +15,7 @@ async def main():
     dp.include_routers(default.router,
                        portfolio.router,
                        trade.router,
+                       state.router,
                        )
 
     await bot.delete_webhook(drop_pending_updates=True)
