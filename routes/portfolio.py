@@ -3,7 +3,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardRemove
 
-from keyboards.portfolio_keyboards import create_portfolio_keyboard
+from keyboards.portfolio import create_portfolio_keyboard
 from schemas.portfolio import PortfolioSchema
 from services.APIHandler import APIHandler
 from states.portfolio import AddForm, DeleteForm, GetForm, UpdateForm

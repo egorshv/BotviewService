@@ -5,8 +5,8 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardRemove
 
-from keyboards.portfolio_keyboards import create_portfolio_keyboard
-from keyboards.trade_keyboards import trade_action_types, trade_currency, trade_keyboard, trade_marks
+from keyboards.portfolio import create_portfolio_keyboard
+from keyboards.trade import trade_action_types, trade_currency, trade_keyboard, trade_marks
 from schemas.trade import TradeSchema
 from services.APIHandler import APIHandler
 from states.trade import AddForm, GetForm, DeleteForm, UpdateForm
@@ -155,7 +155,8 @@ async def getting_deleting_trade_portfolio_name_handler(message: Message, state:
 
 @router.message(DeleteForm.trade_id)
 async def deleting_portfolio_trade_handler(message: Message, state: FSMContext):
-    trade_id = int(message.text[4])
+    msg = message.text
+    trade_id = int(msg[4:msg.index('|') - 1])
     await delete_trade(trade_id)
     await message.answer(
         'Trade deleted',
@@ -194,7 +195,8 @@ async def getting_updating_portfolio_name_handler(message: Message, state: FSMCo
 
 @router.message(UpdateForm.trade_id)
 async def getting_updating_trade_id_handler(message: Message, state: FSMContext):
-    await state.update_data(id=int(message.text[4]))
+    msg = message.text
+    await state.update_data(id=int(msg[4:msg.index('|') - 1]))
     await state.set_state(UpdateForm.ticker)
     await message.answer(
         'Enter new ticker: ',
