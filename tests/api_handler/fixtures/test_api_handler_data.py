@@ -1,7 +1,7 @@
 from datetime import datetime
+from typing import List
 
 import pytest
-from aiohttp import web
 
 from schemas.currency import Currency
 from schemas.operation import OperationSchema
@@ -11,18 +11,18 @@ from schemas.trade import TradeSchema, TradeActionType
 
 
 @pytest.fixture
-def test_get_portfolio():
-    test_get_portfolio = PortfolioSchema(
+def test_get_portfolio() -> PortfolioSchema:
+    get_portfolio = PortfolioSchema(
         id=1,
         name='some',
         user_id=235
     )
-    return web.Response(body=test_get_portfolio.model_dump())
+    return get_portfolio
 
 
 @pytest.fixture
 def test_post_trade():
-    test_post_trade = TradeSchema(
+    post_trade = TradeSchema(
         portfolio_id=1,
         ticker='',
         action=TradeActionType.BUY,
@@ -30,50 +30,37 @@ def test_post_trade():
         currency=Currency.USD,
         created_at=datetime.now()
     )
-    return web.Response(body=test_post_trade.model_dump())
+    return post_trade
+
+@pytest.fixture
+def test_updating_operation() -> OperationSchema:
+    updating_operation = OperationSchema(
+        id=1,
+        portfolio_id=1,
+        value=100,
+        created_at=datetime.now()
+    )
+    return updating_operation
 
 
 @pytest.fixture
-def test_updated_operation():
-    test_updated_operation = OperationSchema(
+def test_updated_operation() -> OperationSchema:
+    updated_operation = OperationSchema(
         id=1,
         portfolio_id=1,
         value=194,
         created_at=datetime.now()
     )
-    return web.Response(body=test_updated_operation.model_dump())
+    return updated_operation
 
 
 @pytest.fixture
-def test_state_list():
-    test_state_list = StateSchema(
-        id=1,
+def test_state_list() -> List[StateSchema]:
+    state_list = [StateSchema(
         portfolio_id=253,
         usd_result=13,
         rub_result=32,
         created_at=datetime.now()
-    )
-    return web.Response(body=test_state_list.model_dump())
+    )]
+    return state_list
 
-
-def prepare_test_routes(app,
-                        test_get_portfolio,
-                        test_post_trade,
-                        test_updated_operation,
-                        test_state_list) -> None:
-    app.router.add_get('/portfolio/1', test_get_portfolio)
-    app.router.add_post('/trade', test_post_trade)
-    app.router.add_put('/operation', test_updated_operation)
-    app.router.add_get(f'/state?portfolio_id=253', test_state_list)
-
-
-@pytest.fixture
-async def test_client(aiohttp_client,
-                      test_get_portfolio,
-                      test_post_trade,
-                      test_updated_operation,
-                      test_state_list):
-    app = web.Application()
-    prepare_test_routes(app, test_get_portfolio, test_post_trade, test_updated_operation, test_state_list)
-    client = await aiohttp_client(app)
-    return client

@@ -1,4 +1,5 @@
 import abc
+import logging
 from typing import Type, List, Optional
 
 import aiohttp
@@ -52,12 +53,12 @@ class APIHandler(AbstractAPIHandler):
     async def get_object(self, object_schema: Type[BaseModel], object_id: int) -> Optional[BaseModel]:
         url = self.object_url[object_schema]
         async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
+            async with session.get(url + f'/{object_id}') as resp:
                 response_json = await resp.json()
                 obj = object_schema(**response_json)
                 return obj
 
-    async def post_object(self, object_schema: Type[BaseModel], posting_object: Type[BaseModel]) -> Optional[BaseModel]:
+    async def post_object(self, object_schema: Type[BaseModel], posting_object: BaseModel) -> Optional[BaseModel]:
         url = self.object_url[object_schema]
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=jsonable_encoder(posting_object.model_dump())) as resp:
