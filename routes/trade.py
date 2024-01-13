@@ -127,7 +127,7 @@ async def get_trades_portfolio_name_handler(message: Message, state: FSMContext)
     await state.clear()
 
 
-# ---------- Delete trades
+# ---------- Delete trade
 
 @router.message(Command('delete_trade'))
 async def delete_trade_handler(message: Message, state: FSMContext):
@@ -165,7 +165,7 @@ async def deleting_portfolio_trade_handler(message: Message, state: FSMContext):
     await state.clear()
 
 
-# ---------- Delete trades
+# ---------- Update trade
 @router.message(Command('update_trade'))
 async def update_trade_handler(message: Message, state: FSMContext):
     await state.set_state(UpdateForm.trade_portfolio_name)
