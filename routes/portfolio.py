@@ -1,13 +1,13 @@
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, ReplyKeyboardRemove
+from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery
 
-from keyboards.portfolio import create_portfolio_keyboard
+from callbacks.portfolio import PortfolioCallback
+from keyboards.KeyboardCreator import KeyboardCreator
 from schemas.portfolio import PortfolioSchema
-from services.APIHandler import APIHandler
-from states.portfolio import AddForm, DeleteForm, GetForm, UpdateForm
-from utils.crud import get_user_portfolios, get_portfolio_by_name, update_portfolio
+from services.UserStorageManager import UserStorageManager
+from states.portfolio import AddForm, UpdateForm
 
 router = Router()
 
@@ -39,8 +39,7 @@ async def getting_deposited_money_handler(message: Message, state: FSMContext):
     data = await state.update_data(user_id=message.from_user.id)
     try:
         portfolio = PortfolioSchema(**data)
-        api_handler = APIHandler()
-        await api_handler.post_object(PortfolioSchema, portfolio)
+        await UserStorageManager(user_id=message.from_user.id).add_portfolio(portfolio)
         await message.answer(
             'Portfolio added',
             reply_markup=ReplyKeyboardRemove()
@@ -57,119 +56,97 @@ async def getting_deposited_money_handler(message: Message, state: FSMContext):
 # ---------- Delete portfolio
 
 @router.message(Command('delete_portfolio'))
-async def delete_portfolio(message: Message, state: FSMContext):
-    await state.set_state(DeleteForm.name)
-    portfolios = await get_user_portfolios(message.from_user.id)
-    portfolio_keyboard = create_portfolio_keyboard(portfolios)
+async def delete_portfolio_handler(message: Message):
+    portfolios = await UserStorageManager(user_id=message.from_user.id).get_portfolios()
+    portfolio_keyboard = KeyboardCreator().create_portfolio_keyboard(portfolios, 'delete')
     await message.answer(
         'Choose deleting portfolio: ',
-        reply_markup=portfolio_keyboard.as_markup()
+        reply_markup=portfolio_keyboard
     )
 
 
-@router.message(DeleteForm.name)
-async def getting_portfolio_id(message: Message, state: FSMContext):
-    try:
-        portfolio = await get_portfolio_by_name(message.text, message.from_user.id)
-        await APIHandler().delete_object(PortfolioSchema, portfolio.id)
-        await message.answer(
-            'Portfolio deleted',
-            reply_markup=ReplyKeyboardRemove()
-        )
-    except Exception as ex:
-        await message.answer(
-            f'Something went wrong, error: {ex}',
-            reply_markup=ReplyKeyboardRemove()
-        )
-    finally:
-        await state.clear()
+@router.callback_query(PortfolioCallback.filter(F.type == 'delete'))
+async def deleting_portfolio_callback(query: CallbackQuery, callback_data: PortfolioCallback):
+    await UserStorageManager(user_id=query.message.from_user.id).delete_portfolio(
+        callback_data.id
+    )
+    await query.message.answer(
+        'Portfolio deleted',
+        reply_markup=ReplyKeyboardRemove()
+    )
 
 
 # ---------- Get portfolio
 
 
 @router.message(Command('get_portfolio'))
-async def get_portfolio_handler(message: Message, state: FSMContext):
-    portfolios = await get_user_portfolios(message.from_user.id)
-    portfolio_keyboard = create_portfolio_keyboard(portfolios)
-    await state.set_state(GetForm.name)
+async def get_portfolio_handler(message: Message):
+    portfolios = await UserStorageManager(user_id=message.from_user.id).get_portfolios()
+    portfolio_keyboard = KeyboardCreator().create_portfolio_keyboard(portfolios, 'get')
     await message.answer(
         'Choose getting portfolio: ',
-        reply_markup=portfolio_keyboard.as_markup()
+        reply_markup=portfolio_keyboard
     )
 
 
-@router.message(GetForm.name)
-async def getting_portfolio_name(message: Message, state: FSMContext):
-    try:
-        portfolio = await get_portfolio_by_name(message.text, message.from_user.id)
-        await message.answer(
-            f'Portfolio {portfolio.name}\n'
-            f'id: {portfolio.id}\n'
-            f'Last precision: {portfolio.last_precision}\n'
-            f'Last recall: {portfolio.last_recall}\n'
-            f'Deposited money: {portfolio.deposited_money}\n',
-            reply_markup=ReplyKeyboardRemove()
-        )
-    except Exception as ex:
-        await message.answer(
-            f'Something went wrong, error: {ex}',
-            reply_markup=ReplyKeyboardRemove()
-        )
-    finally:
-        await state.clear()
+@router.callback_query(PortfolioCallback.filter(F.type == 'get'))
+async def portfolio_id_callback(query: CallbackQuery, callback_data: PortfolioCallback):
+    portfolio = await UserStorageManager(user_id=query.message.from_user.id).get_portfolio(
+        callback_data.id
+    )
+    await query.message.answer(
+        f'Portfolio {portfolio.name}\n'
+        f'id: {portfolio.id}\n'
+        f'Last precision: {portfolio.last_precision}\n'
+        f'Last recall: {portfolio.last_recall}\n'
+        f'Deposited money: {portfolio.deposited_money}\n',
+        reply_markup=ReplyKeyboardRemove()
+    )
 
 
 # ---------- Update portfolio
 
 @router.message(Command('update_portfolio'))
-async def update_portfolio_handler(message: Message, state: FSMContext):
-    portfolios = await get_user_portfolios(message.from_user.id)
-    portfolio_keyboard = create_portfolio_keyboard(portfolios)
-    await state.set_state(UpdateForm.name)
+async def update_portfolio_handler(message: Message):
+    portfolios = await UserStorageManager(user_id=message.from_user.id).get_portfolios()
+    portfolio_keyboard = KeyboardCreator().create_portfolio_keyboard(portfolios, 'update')
     await message.answer(
         'Choose updating portfolio: ',
-        reply_markup=portfolio_keyboard.as_markup()
+        reply_markup=portfolio_keyboard
+    )
+
+
+@router.callback_query(PortfolioCallback.filter(F.type == 'update'))
+async def update_portfolio_callback(query: CallbackQuery, callback_data: PortfolioCallback, state: FSMContext):
+    await state.set_state(UpdateForm.name)
+    await state.update_data(id=callback_data.id)
+    await query.message.answer(
+        f'Enter new name: ',
+        reply_markup=ReplyKeyboardRemove()
     )
 
 
 @router.message(UpdateForm.name)
-async def getting_update_name_handler(message: Message, state: FSMContext):
-    await state.update_data(name=message.text)
-    await state.set_state(UpdateForm.new_name)
+async def getting_updating_field_handler(message: Message, state: FSMContext):
+    await state.update_data(name=message.text, user_id=message.from_user.id)
+    await state.set_state(UpdateForm.deposited_money)
     await message.answer(
-        'Enter new name: ',
+        f'Enter new deposited money: ',
         reply_markup=ReplyKeyboardRemove()
     )
 
 
-@router.message(UpdateForm.new_name)
+@router.message(UpdateForm.deposited_money)
 async def getting_updating_field_handler(message: Message, state: FSMContext):
-    await state.update_data(new_name=message.text)
-    await state.set_state(UpdateForm.new_deposited_money)
-    await message.answer(
-        'Enter new deposited money: ',
-        reply_markup=ReplyKeyboardRemove()
+    data = await state.update_data(deposited_money=float(message.text))
+    portfolio = PortfolioSchema(**data)
+    await UserStorageManager(user_id=portfolio.user_id).update_portfolio(
+        portfolio_id=portfolio.id,
+        portfolio=portfolio
     )
 
-
-@router.message(UpdateForm.new_deposited_money)
-async def getting_updating_field_handler(message: Message, state: FSMContext):
-    try:
-        data = await state.update_data(new_deposited_money=float(message.text))
-        await update_portfolio(data.get('name'),
-                               message.from_user.id,
-                               data.get('new_name'),
-                               data.get('new_deposited_money'))
-
-        await message.answer(
-            'Portfolio updated',
-            reply_markup=ReplyKeyboardRemove()
-        )
-    except Exception as e:
-        await message.answer(
-            f'Something went wrong: {e}',
-            reply_markup=ReplyKeyboardRemove()
-        )
-    finally:
-        await state.clear()
+    await message.answer(
+        'Portfolio updated',
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await state.clear()
