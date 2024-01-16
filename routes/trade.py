@@ -11,6 +11,7 @@ from keyboards.KeyboardCreator import KeyboardCreator
 from schemas.trade import TradeSchema
 from services.UserStorageManager import UserStorageManager
 from states.trade import AddForm, UpdateForm
+from utils.validators import is_trade_action, isfloat, is_currency, is_mark
 
 router = Router()
 
@@ -50,6 +51,13 @@ async def get_stock_ticker_handler(message: Message, state: FSMContext):
 
 @router.message(AddForm.action)
 async def get_action_type_handler(message: Message, state: FSMContext):
+    if not is_trade_action(message.text.lower()):
+        keyboard = KeyboardCreator().get_trade_action_types_keyboard()
+        await message.answer(
+            'It is not a valid trade action type, try again',
+            reply_markup=keyboard
+        )
+        return await state.set_state(AddForm.action)
     await state.update_data(action=message.text.lower())
     await state.set_state(AddForm.value)
     await message.answer(
@@ -60,6 +68,12 @@ async def get_action_type_handler(message: Message, state: FSMContext):
 
 @router.message(AddForm.value)
 async def get_trade_value_handler(message: Message, state: FSMContext):
+    if not isfloat(message.text):
+        await message.answer(
+            'Wrong field value, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return await state.set_state(AddForm.value)
     await state.update_data(value=float(message.text))
     await state.set_state(AddForm.currency)
     keyboard = KeyboardCreator().get_currency_keyboard()
@@ -71,6 +85,13 @@ async def get_trade_value_handler(message: Message, state: FSMContext):
 
 @router.message(AddForm.currency)
 async def get_trade_currency_handler(message: Message, state: FSMContext):
+    if not is_currency(message.text.lower()):
+        keyboard = KeyboardCreator().get_currency_keyboard()
+        await message.answer(
+            'It is a not available currency, try again',
+            reply_markup=keyboard
+        )
+        return await state.set_state(AddForm.currency)
     data = await state.update_data(currency=message.text.lower(), created_at=datetime.now())
     trade = TradeSchema(**data)
     await UserStorageManager(user_id=message.from_user.id).add_trade(trade)
@@ -169,6 +190,7 @@ async def getting_updating_trade_id_callback(query: CallbackQuery, callback_data
         reply_markup=ReplyKeyboardRemove()
     )
 
+
 @router.message(UpdateForm.ticker)
 async def getting_updating_ticker_handler(message: Message, state: FSMContext):
     await state.update_data(ticker=message.text)
@@ -182,6 +204,13 @@ async def getting_updating_ticker_handler(message: Message, state: FSMContext):
 
 @router.message(UpdateForm.action)
 async def getting_updating_action_handler(message: Message, state: FSMContext):
+    if not is_trade_action(message.text):
+        keyboard = KeyboardCreator().get_trade_action_types_keyboard()
+        await message.answer(
+            'It is a not valid trade action type, try again',
+            reply_markup=keyboard
+        )
+        return await state.set_state(UpdateForm.action)
     await state.update_data(action=message.text)
     await state.set_state(UpdateForm.value)
     await message.answer(
@@ -192,6 +221,12 @@ async def getting_updating_action_handler(message: Message, state: FSMContext):
 
 @router.message(UpdateForm.value)
 async def getting_updating_value_handler(message: Message, state: FSMContext):
+    if not isfloat(message.text):
+        await message.answer(
+            'Wrong field value, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return await state.set_state(UpdateForm.value)
     await state.update_data(value=float(message.text))
     await state.set_state(UpdateForm.currency)
     keyboard = KeyboardCreator().get_currency_keyboard()
@@ -203,6 +238,13 @@ async def getting_updating_value_handler(message: Message, state: FSMContext):
 
 @router.message(UpdateForm.currency)
 async def getting_updating_currency_handler(message: Message, state: FSMContext):
+    if not is_currency(message.text):
+        keyboard = KeyboardCreator().get_currency_keyboard()
+        await message.answer(
+            'It is a not available currency, try again',
+            reply_markup=keyboard
+        )
+        return await state.set_state(UpdateForm.currency)
     await state.update_data(currency=message.text)
     await state.set_state(UpdateForm.mark)
     keyboard = KeyboardCreator().get_trade_marks_keyboard()
@@ -214,6 +256,13 @@ async def getting_updating_currency_handler(message: Message, state: FSMContext)
 
 @router.message(UpdateForm.mark)
 async def getting_updating_mark_handler(message: Message, state: FSMContext):
+    if not is_mark(message.text):
+        keyboard = KeyboardCreator().get_trade_marks_keyboard()
+        await message.answer(
+            'It is a not valid mark, try again',
+            reply_markup=keyboard
+        )
+        return await state.set_state(UpdateForm.mark)
     await state.update_data(mark=message.text)
     await state.set_state(UpdateForm.result)
     await message.answer(
@@ -224,6 +273,12 @@ async def getting_updating_mark_handler(message: Message, state: FSMContext):
 
 @router.message(UpdateForm.result)
 async def getting_updating_result_handler(message: Message, state: FSMContext):
+    if not isfloat(message.text):
+        await message.answer(
+            'Wrong field value, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return await state.set_state(UpdateForm.result)
     data = await state.update_data(result=float(message.text), created_at=datetime.now())
     await UserStorageManager(user_id=message.from_user.id).update_trade(data.get('id'), TradeSchema(**data))
     await message.answer(

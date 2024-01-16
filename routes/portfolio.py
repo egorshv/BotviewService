@@ -2,12 +2,14 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery
+from pydantic import ValidationError
 
 from callbacks.portfolio import PortfolioCallback
 from keyboards.KeyboardCreator import KeyboardCreator
 from schemas.portfolio import PortfolioSchema
 from services.UserStorageManager import UserStorageManager
 from states.portfolio import AddForm, UpdateForm
+from aiohttp.client_exceptions import ClientConnectorError
 
 router = Router()
 
@@ -35,8 +37,14 @@ async def getting_name_handler(message: Message, state: FSMContext):
 
 @router.message(AddForm.deposited_money)
 async def getting_deposited_money_handler(message: Message, state: FSMContext):
-    await state.update_data(deposited_money=message.text)
-    data = await state.update_data(user_id=message.from_user.id)
+    if not message.text.isdigit():
+        await message.answer(
+            'Wrong field value, try again.',
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return await state.set_state(AddForm.deposited_money)
+
+    data = await state.update_data(user_id=message.from_user.id, deposited_money=int(message.text))
     try:
         portfolio = PortfolioSchema(**data)
         await UserStorageManager(user_id=message.from_user.id).add_portfolio(portfolio)
@@ -44,9 +52,14 @@ async def getting_deposited_money_handler(message: Message, state: FSMContext):
             'Portfolio added',
             reply_markup=ReplyKeyboardRemove()
         )
-    except Exception as ex:
+    except ValidationError:
         await message.answer(
-            f'Something went wrong, error: {ex}',
+            f'Validation error, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+    except ClientConnectorError:
+        await message.answer(
+            'Network error, try again',
             reply_markup=ReplyKeyboardRemove()
         )
     finally:
@@ -138,15 +151,33 @@ async def getting_updating_field_handler(message: Message, state: FSMContext):
 
 @router.message(UpdateForm.deposited_money)
 async def getting_updating_field_handler(message: Message, state: FSMContext):
-    data = await state.update_data(deposited_money=float(message.text))
-    portfolio = PortfolioSchema(**data)
-    await UserStorageManager(user_id=portfolio.user_id).update_portfolio(
-        portfolio_id=portfolio.id,
-        portfolio=portfolio
-    )
+    if not message.text.isdigit():
+        await message.answer(
+            'Wrong field value, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return await state.set_state(UpdateForm.deposited_money)
 
-    await message.answer(
-        'Portfolio updated',
-        reply_markup=ReplyKeyboardRemove()
-    )
-    await state.clear()
+    data = await state.update_data(deposited_money=float(message.text))
+    try:
+        portfolio = PortfolioSchema(**data)
+        await UserStorageManager(user_id=portfolio.user_id).update_portfolio(
+            portfolio_id=portfolio.id,
+            portfolio=portfolio
+        )
+        await message.answer(
+            'Portfolio updated',
+            reply_markup=ReplyKeyboardRemove()
+        )
+    except ValidationError:
+        await message.answer(
+            'Validation error, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+    except ClientConnectorError:
+        await message.answer(
+            'Network error, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+    finally:
+        await state.clear()

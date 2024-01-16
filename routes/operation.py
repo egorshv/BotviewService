@@ -4,6 +4,8 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery
+from aiohttp import ClientConnectionError
+from pydantic import ValidationError
 
 from callbacks.operation import OperationCallback
 from callbacks.portfolio import PortfolioCallback
@@ -11,6 +13,7 @@ from keyboards.KeyboardCreator import KeyboardCreator
 from schemas.operation import OperationSchema
 from services.UserStorageManager import UserStorageManager
 from states.operation import AddForm, DeleteForm, UpdateForm
+from utils.validators import isfloat
 
 router = Router()
 
@@ -39,14 +42,32 @@ async def get_portfolio_id_callback(query: CallbackQuery, callback_data: Portfol
 
 @router.message(AddForm.operation_value)
 async def getting_operation_value_handler(message: Message, state: FSMContext):
-    data = await state.update_data(value=float(message.text), created_at=datetime.now())
-    operation = OperationSchema(**data)
-    await UserStorageManager(user_id=message.from_user.id).add_operation(operation)
-    await state.clear()
-    await message.answer(
-        'Operation added',
-        reply_markup=ReplyKeyboardRemove()
-    )
+    if not isfloat(message.text):
+        await message.answer(
+            'Wrong field value, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return await state.set_state(AddForm.operation_value)
+    try:
+        data = await state.update_data(value=float(message.text), created_at=datetime.now())
+        operation = OperationSchema(**data)
+        await UserStorageManager(user_id=message.from_user.id).add_operation(operation)
+        await message.answer(
+            'Operation added',
+            reply_markup=ReplyKeyboardRemove()
+        )
+    except ValidationError:
+        await message.answer(
+            'Validation error, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+    except ClientConnectionError:
+        await message.answer(
+            'Network error, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+    finally:
+        await state.clear()
 
 
 # ---------- Get operations
@@ -122,12 +143,10 @@ async def update_operation_handler(message: Message):
 
 @router.callback_query(PortfolioCallback.filter(F.type == 'operation-update'))
 async def getting_portfolio_id_callback(query: CallbackQuery, callback_data: PortfolioCallback, state: FSMContext):
-    storage_manager = UserStorageManager(user_id=query.message.from_user.id)
     await state.set_state(UpdateForm.operation_value)
-    portfolio = await storage_manager.get_portfolio(callback_data.id)
-    await state.update_data(portfolio_id=portfolio.id)
-    operations = await storage_manager.get_operations(
-        portfolio_id=portfolio.id
+    await state.update_data(portfolio_id=callback_data.id)
+    operations = await UserStorageManager(user_id=query.message.from_user.id).get_operations(
+        portfolio_id=callback_data.id
     )
     keyboard = KeyboardCreator().create_operation_keyboard(operations, 'update')
     await query.message.answer(
@@ -149,11 +168,29 @@ async def getting_updating_operation_callback(query: CallbackQuery, callback_dat
 
 @router.message(UpdateForm.operation_value)
 async def getting_updating_operation_value_handler(message: Message, state: FSMContext):
-    data = await state.update_data(value=float(message.text), created_at=datetime.now())
-    operation = OperationSchema(**data)
-    await UserStorageManager(user_id=message.from_user.id).update_operation(operation.id, operation)
-    await message.answer(
-        'Operation updated',
-        reply_markup=ReplyKeyboardRemove()
-    )
-    await state.clear()
+    if not isfloat(message.text):
+        await message.answer(
+            'Wrong field value, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return await state.set_state(UpdateForm.operation_value)
+    try:
+        data = await state.update_data(value=float(message.text), created_at=datetime.now())
+        operation = OperationSchema(**data)
+        await UserStorageManager(user_id=message.from_user.id).update_operation(operation.id, operation)
+        await message.answer(
+            'Operation updated',
+            reply_markup=ReplyKeyboardRemove()
+        )
+    except ValidationError:
+        await message.answer(
+            'Validation error, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+    except ClientConnectionError:
+        await message.answer(
+            'Network error, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+    finally:
+        await state.clear()

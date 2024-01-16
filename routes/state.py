@@ -11,6 +11,7 @@ from keyboards.KeyboardCreator import KeyboardCreator
 from schemas.state import StateSchema
 from services.UserStorageManager import UserStorageManager
 from states.state import AddForm, UpdateForm
+from utils.validators import isfloat
 
 router = Router()
 
@@ -38,6 +39,12 @@ async def getting_portfolio_id_callback(query: CallbackQuery, callback_data: Por
 
 @router.message(AddForm.rub_result)
 async def getting_rub_result_handler(message: Message, state: FSMContext):
+    if not isfloat(message.text):
+        await message.answer(
+            'Wrong field value, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return await state.set_state(AddForm.rub_result)
     await state.update_data(rub_result=float(message.text))
     await state.set_state(AddForm.usd_result)
     await message.answer(
@@ -48,6 +55,12 @@ async def getting_rub_result_handler(message: Message, state: FSMContext):
 
 @router.message(AddForm.usd_result)
 async def getting_usd_result_handler(message: Message, state: FSMContext):
+    if not isfloat(message.text):
+        await message.answer(
+            'Wrong field value, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return await state.set_state(AddForm.usd_result)
     data = await state.update_data(usd_result=float(message.text), created_at=datetime.now())
     state_object = StateSchema(**data)
     await UserStorageManager(user_id=message.from_user.id).add_state(state_object)
@@ -153,6 +166,12 @@ async def getting_updating_state_id_callback(query: CallbackQuery, callback_data
 
 @router.message(UpdateForm.rub_result)
 async def getting_updating_state_rub_result_handler(message: Message, state: FSMContext):
+    if not isfloat(message.text):
+        await message.answer(
+            'Wrong field value',
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return await state.set_state(UpdateForm.rub_result)
     await state.update_data(rub_result=float(message.text))
     await state.set_state(UpdateForm.usd_result)
     await message.answer(
@@ -163,6 +182,12 @@ async def getting_updating_state_rub_result_handler(message: Message, state: FSM
 
 @router.message(UpdateForm.usd_result)
 async def getting_updating_state_usd_result_handler(message: Message, state: FSMContext):
+    if not isfloat(message.text):
+        await message.answer(
+            'Wrong field value',
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return await state.set_state(UpdateForm.usd_result)
     data = await state.update_data(usd_result=float(message.text), created_at=datetime.now())
     state_object = StateSchema(**data)
     await UserStorageManager(user_id=message.from_user.id).update_state(state_object.id, state_object)
