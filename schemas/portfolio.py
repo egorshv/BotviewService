@@ -15,3 +15,6 @@ class PortfolioSchema(BaseModel):
     def prevent_none(cls, v):
         assert id is not None, 'id may not be None'
         return v
+
+    def __str__(self):
+        return f'id: {self.id} | name: {self.name}'

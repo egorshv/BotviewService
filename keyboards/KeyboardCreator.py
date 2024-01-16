@@ -1,8 +1,12 @@
 from typing import List
 
-from aiogram.types import ReplyKeyboardMarkup
-from aiogram.utils.keyboard import ReplyKeyboardBuilder
+from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup
+from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
 
+from callbacks.operation import OperationCallback
+from callbacks.portfolio import PortfolioCallback
+from callbacks.state import StateCallback
+from callbacks.trade import TradeCallback
 from schemas.currency import Currency
 from schemas.operation import OperationSchema
 from schemas.portfolio import PortfolioSchema
@@ -11,43 +15,50 @@ from schemas.trade import TradeSchema, TradeActionType, TradeMark
 
 
 class KeyboardCreator:
-    def __init__(self):
-        self.operation_pattern = 'id: {} | value: {} | created at: {}'
-        self.state_pattern = 'id: {} | USD result: {} | RUB result: {} | Created at: {}'
-        self.trade_pattern = 'id: {} | ticker: {} | action: {} | value: {} | created_at: {}'
-
     @staticmethod
-    def create_portfolio_keyboard(portfolios: List[PortfolioSchema]) -> ReplyKeyboardMarkup:
-        builder = ReplyKeyboardBuilder()
+    def create_portfolio_keyboard(portfolios: List[PortfolioSchema], callback_type: str) -> InlineKeyboardMarkup:
+        builder = InlineKeyboardBuilder()
         for portfolio in portfolios:
-            builder.button(text=portfolio.name)
+            builder.button(
+                text=portfolio.name,
+                callback_data=PortfolioCallback(
+                    type=callback_type,
+                    id=portfolio.id
+                )
+            )
 
         return builder.as_markup(resize_keyboard=True)
 
-    def create_operation_keyboard(self, operations: List[OperationSchema]) -> ReplyKeyboardMarkup:
-        builder = ReplyKeyboardBuilder()
-        [builder.button(text=self.operation_pattern.format(
-            operation.id,
-            operation.value,
-            operation.created_at
-        )) for operation in operations]
+    def create_operation_keyboard(self, operations: List[OperationSchema], callback_type: str) -> InlineKeyboardMarkup:
+        builder = InlineKeyboardBuilder()
+        [builder.button(text=f"id: {operation.id} | value: {operation.value} | created at: {operation.created_at}",
+                        callback_data=OperationCallback(
+                            type=callback_type,
+                            id=operation.id
+                        )) for operation in operations]
         return builder.as_markup(resize_keyboard=True)
 
-    def create_state_keyboard(self, states: List[StateSchema]) -> ReplyKeyboardMarkup:
-        builder = ReplyKeyboardBuilder()
-        [builder.button(text=self.state_pattern.format(state.id,
-                                                       state.usd_result,
-                                                       state.rub_result,
-                                                       state.created_at)) for state in states]
+    def create_state_keyboard(self, states: List[StateSchema], callback_type: str) -> InlineKeyboardMarkup:
+        builder = InlineKeyboardBuilder()
+        [builder.button(
+            text=f"USD result: {state.usd_result} | RUB result: {state.rub_result} | created at: {state.created_at}",
+            callback_data=StateCallback(
+                type=callback_type,
+                id=state.id,
+                portfolio_id=state.portfolio_id
+            )
+            ) for state in states]
         return builder.as_markup(resize_keyboard=True)
 
-    def create_trade_keyboard(self, trades: List[TradeSchema]) -> ReplyKeyboardMarkup:
-        builder = ReplyKeyboardBuilder()
-        [builder.button(text=self.trade_pattern.format(trade.id,
-                                                       trade.ticker,
-                                                       trade.action,
-                                                       trade.value,
-                                                       trade.created_at))
+    def create_trade_keyboard(self, trades: List[TradeSchema], callback_type: str) -> InlineKeyboardMarkup:
+        builder = InlineKeyboardBuilder()
+        [builder.button(text=f"ticker: {trade.ticker} | action: {trade.action} | value: {trade.value}"
+                             f"created at: {trade.created_at}",
+                        callback_data=TradeCallback(
+                            type=callback_type,
+                            id=trade.id,
+                            portfolio_id=trade.portfolio_id
+                        ))
          for trade in trades]
         return builder.as_markup(resize_keyboard=True)
 

@@ -1,16 +1,19 @@
 from datetime import datetime
 
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, ReplyKeyboardRemove
+from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery
+from aiohttp import ClientConnectionError
+from pydantic import ValidationError
 
-from keyboards.operation import operation_keyboard
-from keyboards.portfolio import create_portfolio_keyboard
+from callbacks.operation import OperationCallback
+from callbacks.portfolio import PortfolioCallback
+from keyboards.KeyboardCreator import KeyboardCreator
 from schemas.operation import OperationSchema
-from services.APIHandler import APIHandler
-from states.operation import AddForm, GetForm, DeleteForm, UpdateForm
-from utils.crud import get_user_portfolios, get_portfolio_by_name, get_operation_list
+from services.UserStorageManager import UserStorageManager
+from states.operation import AddForm, DeleteForm, UpdateForm
+from utils.validators import isfloat
 
 router = Router()
 
@@ -18,25 +21,20 @@ router = Router()
 # ---------- Add operation
 
 @router.message(Command('add_operation'))
-async def add_operation_handler(message: Message, state: FSMContext):
-    await state.set_state(AddForm.portfolio_name)
-    portfolios = await get_user_portfolios(user_id=message.from_user.id)
-    keyboard = create_portfolio_keyboard(portfolios)
+async def add_operation_handler(message: Message):
+    portfolios = await UserStorageManager(user_id=message.from_user.id).get_portfolios()
+    keyboard = KeyboardCreator().create_portfolio_keyboard(portfolios, 'operation-add')
     await message.answer(
         'Choose portfolio: ',
-        reply_markup=keyboard.as_markup(resize_keyboard=True)
+        reply_markup=keyboard
     )
 
 
-@router.message(AddForm.portfolio_name)
-async def getting_operation_portfolio_name_handler(message: Message, state: FSMContext):
+@router.callback_query(PortfolioCallback.filter(F.type == 'operation-add'))
+async def get_portfolio_id_callback(query: CallbackQuery, callback_data: PortfolioCallback, state: FSMContext):
     await state.set_state(AddForm.operation_value)
-    portfolio = await get_portfolio_by_name(
-        name=message.text,
-        user_id=message.from_user.id
-    )
-    await state.update_data(portfolio_id=portfolio.id)
-    await message.answer(
+    await state.update_data(portfolio_id=callback_data.id)
+    await query.message.answer(
         'Enter operation value: ',
         reply_markup=ReplyKeyboardRemove()
     )
@@ -44,48 +42,57 @@ async def getting_operation_portfolio_name_handler(message: Message, state: FSMC
 
 @router.message(AddForm.operation_value)
 async def getting_operation_value_handler(message: Message, state: FSMContext):
-    data = await state.update_data(value=float(message.text), created_at=datetime.now())
-    operation = OperationSchema(**data)
-    await APIHandler().post_object(OperationSchema, operation)
-    await state.clear()
-    await message.answer(
-        'Operation added',
-        reply_markup=ReplyKeyboardRemove()
-    )
+    if not isfloat(message.text):
+        await message.answer(
+            'Wrong field value, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return await state.set_state(AddForm.operation_value)
+    try:
+        data = await state.update_data(value=float(message.text), created_at=datetime.now())
+        operation = OperationSchema(**data)
+        await UserStorageManager(user_id=message.from_user.id).add_operation(operation)
+        await message.answer(
+            'Operation added',
+            reply_markup=ReplyKeyboardRemove()
+        )
+    except ValidationError:
+        await message.answer(
+            'Validation error, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+    except ClientConnectionError:
+        await message.answer(
+            'Network error, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+    finally:
+        await state.clear()
 
 
 # ---------- Get operations
 
 @router.message(Command('get_operations'))
-async def get_operations_handler(message: Message, state: FSMContext):
-    await state.set_state(GetForm.operation_portfolio_name)
-    portfolios = await get_user_portfolios(user_id=message.from_user.id)
-    keyboard = create_portfolio_keyboard(portfolios)
+async def get_operations_handler(message: Message):
+    portfolios = await UserStorageManager(user_id=message.from_user.id).get_portfolios()
+    keyboard = KeyboardCreator.create_portfolio_keyboard(portfolios, 'operation-get')
     await message.answer(
         'Choose portfolio: ',
-        reply_markup=keyboard.as_markup(resize_keyboard=True)
+        reply_markup=keyboard
     )
 
 
-@router.message(GetForm.operation_portfolio_name)
-async def getting_operation_portfolio_name_handler(message: Message, state: FSMContext):
-    portfolio = await get_portfolio_by_name(
-        name=message.text,
-        user_id=message.from_user.id
+@router.callback_query(PortfolioCallback.filter(F.type == 'operation-get'))
+async def getting_portfolio_id_handler(query: CallbackQuery, callback_data: PortfolioCallback):
+    operations = await UserStorageManager(user_id=query.message.from_user.id).get_operations(
+        portfolio_id=callback_data.id
     )
-    operations = await get_operation_list(portfolio_id=portfolio.id)
-    operation_pattern = 'id: {} | value: {} | created at: {}'
-    operation_string = '\n'.join([operation_pattern.format(
-        operation.id,
-        operation.value,
-        operation.created_at
-    ) for operation in operations])
+    operation_string = '\n'.join(list(map(str, operations)))
     msg = 'Not operations yet' if not operations else operation_string
-    await message.answer(
+    await query.message.answer(
         msg,
         reply_markup=ReplyKeyboardRemove()
     )
-    await state.clear()
 
 
 # ---------- Delete operations
@@ -93,77 +100,67 @@ async def getting_operation_portfolio_name_handler(message: Message, state: FSMC
 @router.message(Command('delete_operation'))
 async def delete_operation_handler(message: Message, state: FSMContext):
     await state.set_state(DeleteForm.operation_portfolio_name)
-    portfolios = await get_user_portfolios(user_id=message.from_user.id)
-    keyboard = create_portfolio_keyboard(portfolios)
+    portfolios = await UserStorageManager(user_id=message.from_user.id).get_portfolios()
+    keyboard = KeyboardCreator.create_portfolio_keyboard(portfolios, 'operation-delete')
     await message.answer(
         'Choose portfolio: ',
-        reply_markup=keyboard.as_markup(resize_keyboard=True)
+        reply_markup=keyboard
     )
 
 
-@router.message(DeleteForm.operation_portfolio_name)
-async def getting_operation_portfolio_name_handler(message: Message, state: FSMContext):
-    await state.set_state(DeleteForm.operation_id)
-    portfolio = await get_portfolio_by_name(
-        name=message.text,
-        user_id=message.from_user.id
+@router.callback_query(PortfolioCallback.filter(F.type == 'operation-delete'))
+async def getting_portfolio_id_callback(query: CallbackQuery, callback_data: PortfolioCallback):
+    operations = await UserStorageManager(user_id=query.message.from_user.id).get_operations(
+        portfolio_id=callback_data.id
     )
-    operations = await get_operation_list(portfolio_id=portfolio.id)
-    keyboard = operation_keyboard(operations)
-    await message.answer(
+    keyboard = KeyboardCreator().create_operation_keyboard(operations, 'operation-delete')
+    await query.message.answer(
         'Choose deleting operation: ',
-        reply_markup=keyboard.as_markup(resize_keyboard=True)
+        reply_markup=keyboard
     )
 
 
-@router.message(DeleteForm.operation_id)
-async def getting_deleting_operation_id_handler(message: Message, state: FSMContext):
-    msg = message.text
-    operation_id = int(msg[4:msg.index('|') - 1])
-    await APIHandler().delete_object(OperationSchema, operation_id)
-    await message.answer(
+@router.callback_query(OperationCallback.filter(F.type == 'operation-delete'))
+async def getting_operation_id_callback(query: CallbackQuery, callback_data: OperationCallback):
+    await UserStorageManager(user_id=query.message.from_user.id).delete_operation(callback_data.id)
+    await query.message.answer(
         'Operation deleted',
         reply_markup=ReplyKeyboardRemove()
     )
-    await state.clear()
 
 
 # ---------- Update operations
 
 @router.message(Command('update_operation'))
-async def update_operation_handler(message: Message, state: FSMContext):
-    await state.set_state(UpdateForm.operation_portfolio_name)
-    portfolios = await get_user_portfolios(user_id=message.from_user.id)
-    keyboard = create_portfolio_keyboard(portfolios)
+async def update_operation_handler(message: Message):
+    portfolios = await UserStorageManager(user_id=message.from_user.id).get_portfolios()
+    keyboard = KeyboardCreator().create_portfolio_keyboard(portfolios, 'operation-update')
     await message.answer(
         'Choose portfolio: ',
-        reply_markup=keyboard.as_markup(resize_keyboard=True)
+        reply_markup=keyboard
     )
 
 
-@router.message(UpdateForm.operation_portfolio_name)
-async def getting_updating_operation_portfolio_name_handler(message: Message, state: FSMContext):
-    await state.set_state(UpdateForm.operation_id)
-    portfolio = await get_portfolio_by_name(
-        name=message.text,
-        user_id=message.from_user.id
-    )
-    operations = await get_operation_list(portfolio_id=portfolio.id)
-    await state.update_data(portfolio_id=portfolio.id)
-    keyboard = operation_keyboard(operations)
-    await message.answer(
-        'Choose updating operation: ',
-        reply_markup=keyboard.as_markup(resize_keyboard=True)
-    )
-
-
-@router.message(UpdateForm.operation_id)
-async def getting_updating_operation_id_handler(message: Message, state: FSMContext):
+@router.callback_query(PortfolioCallback.filter(F.type == 'operation-update'))
+async def getting_portfolio_id_callback(query: CallbackQuery, callback_data: PortfolioCallback, state: FSMContext):
     await state.set_state(UpdateForm.operation_value)
-    msg = message.text
-    operation_id = int(msg[4:msg.index('|')])
-    await state.update_data(id=operation_id)
-    await message.answer(
+    await state.update_data(portfolio_id=callback_data.id)
+    operations = await UserStorageManager(user_id=query.message.from_user.id).get_operations(
+        portfolio_id=callback_data.id
+    )
+    keyboard = KeyboardCreator().create_operation_keyboard(operations, 'update')
+    await query.message.answer(
+        'Choose updating operation: ',
+        reply_markup=keyboard
+    )
+
+
+@router.callback_query(OperationCallback.filter(F.type == 'update'))
+async def getting_updating_operation_callback(query: CallbackQuery, callback_data: OperationCallback,
+                                              state: FSMContext):
+    await state.set_state(UpdateForm.operation_value)
+    await state.update_data(id=callback_data.id)
+    await query.message.answer(
         'Enter new operation value: ',
         reply_markup=ReplyKeyboardRemove()
     )
@@ -171,11 +168,29 @@ async def getting_updating_operation_id_handler(message: Message, state: FSMCont
 
 @router.message(UpdateForm.operation_value)
 async def getting_updating_operation_value_handler(message: Message, state: FSMContext):
-    data = await state.update_data(value=float(message.text), created_at=datetime.now())
-    operation = OperationSchema(**data)
-    await APIHandler().update_object(OperationSchema, operation.id, operation)
-    await message.answer(
-        'Operation updated',
-        reply_markup=ReplyKeyboardRemove()
-    )
-    await state.clear()
+    if not isfloat(message.text):
+        await message.answer(
+            'Wrong field value, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return await state.set_state(UpdateForm.operation_value)
+    try:
+        data = await state.update_data(value=float(message.text), created_at=datetime.now())
+        operation = OperationSchema(**data)
+        await UserStorageManager(user_id=message.from_user.id).update_operation(operation.id, operation)
+        await message.answer(
+            'Operation updated',
+            reply_markup=ReplyKeyboardRemove()
+        )
+    except ValidationError:
+        await message.answer(
+            'Validation error, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+    except ClientConnectionError:
+        await message.answer(
+            'Network error, try again',
+            reply_markup=ReplyKeyboardRemove()
+        )
+    finally:
+        await state.clear()
