@@ -18,5 +18,5 @@ class ChartCreator(AbstractChartCreator):
 
     def create_line_chart(self, lines: dict, title: str) -> None:
         data = pd.DataFrame(data=lines)
-        self.fig = px.line(data, x='value', y='time', title=title)
+        self.fig = px.line(data, x='time', y='value', title=title, color='line')
         self.fig.write_image(self.filename)
