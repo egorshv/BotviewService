@@ -1,8 +1,24 @@
-from aiogram import Router
+import logging
+
+from aiogram import Router, F
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.fsm.context import FSMContext
+from aiogram.types import Message, ReplyKeyboardRemove
+from aiogram.utils.formatting import Text
 
 router = Router()
+
+
+@router.message(Command('cancel'))
+@router.message(F.text.lower() == 'cancel')
+async def cancel_handler(message: Message, state: FSMContext):
+    current_state = await state.get_state()
+    if current_state is None:
+        return
+
+    logging.info('Cancelling state %r', current_state)
+    await state.clear()
+    await message.reply('canceled', reply_markup=ReplyKeyboardRemove())
 
 
 @router.message(Command('start'))
