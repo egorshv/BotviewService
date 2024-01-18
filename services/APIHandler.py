@@ -1,16 +1,16 @@
 import abc
-import logging
 from typing import Type, List, Optional
 
 import aiohttp
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
+from schemas.currency import Currency
 from schemas.operation import OperationSchema
 from schemas.portfolio import PortfolioSchema
 from schemas.state import StateSchema
 from schemas.trade import TradeSchema
-from settings import TRADE_URL, PORTFOLIO_URL, OPERATION_URL, STATE_URL
+from settings import TRADE_URL, PORTFOLIO_URL, OPERATION_URL, STATE_URL, RECALL_URL, PRECISION_URL, CHART_URL
 
 
 class AbstractAPIHandler(abc.ABC):
@@ -21,6 +21,11 @@ class AbstractAPIHandler(abc.ABC):
             PortfolioSchema: PORTFOLIO_URL,
             OperationSchema: OPERATION_URL,
             StateSchema: STATE_URL,
+        }
+        self.logical_url = {
+            'recall': RECALL_URL,
+            'precision': PRECISION_URL,
+            'chart': CHART_URL
         }
 
     @abc.abstractmethod
@@ -43,6 +48,18 @@ class AbstractAPIHandler(abc.ABC):
 
     @abc.abstractmethod
     async def object_list(self, object_schema: Type[BaseModel], **kwargs) -> List[Type[BaseModel]]:
+        raise NotImplemented
+
+    @abc.abstractmethod
+    async def calculate_precision(self, object_schema: Type[BaseModel], portfolio_id: int) -> BaseModel:
+        raise NotImplemented
+
+    @abc.abstractmethod
+    async def calculate_recall(self, object_schema: Type[BaseModel], portfolio_id: int) -> BaseModel:
+        raise NotImplemented
+
+    @abc.abstractmethod
+    async def get_chart_data(self, portfolio_id: int, currency: Currency):
         raise NotImplemented
 
 
@@ -87,3 +104,24 @@ class APIHandler(AbstractAPIHandler):
             async with session.get(url, params=kwargs) as resp:
                 response_json = await resp.json()
                 return [object_schema(**response) for response in list(response_json)]
+
+    async def calculate_recall(self, object_schema: Type[BaseModel], portfolio_id: int) -> BaseModel:
+        url = self.logical_url['recall'].format(portfolio_id)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                response_json = await resp.json()
+                return object_schema(**response_json)
+
+    async def calculate_precision(self, object_schema: Type[BaseModel], portfolio_id: int) -> BaseModel:
+        url = self.logical_url['precision'].format(portfolio_id)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                response_json = await resp.json()
+                return object_schema(**response_json)
+
+    async def get_chart_data(self, portfolio_id: int, currency: Currency):
+        url = self.logical_url['chart'].format(portfolio_id)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params={'currency': currency.value}) as resp:
+                response_json = await resp.json()
+                return response_json[str(portfolio_id)]

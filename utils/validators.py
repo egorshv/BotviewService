@@ -7,12 +7,12 @@ def isfloat(number: str) -> bool:
 
 
 def is_trade_action(action: str) -> bool:
-    return action in TradeActionType
+    return action in [action.value for action in TradeActionType]
 
 
 def is_currency(currency: str) -> bool:
-    return currency in Currency
+    return currency in [cur.value for cur in Currency]
 
 
 def is_mark(mark: str) -> bool:
-    return mark in TradeMark
+    return mark in [mark.value for mark in TradeMark]

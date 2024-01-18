@@ -1,6 +1,8 @@
 import abc
-from typing import List
+from datetime import datetime
+from typing import List, Tuple
 
+from schemas.currency import Currency
 from schemas.operation import OperationSchema
 from schemas.portfolio import PortfolioSchema
 from schemas.state import StateSchema
@@ -81,6 +83,18 @@ class AbstractUserStorageManager(abc.ABC):
     async def add_operation(self, operation: OperationSchema) -> OperationSchema:
         raise NotImplemented
 
+    @abc.abstractmethod
+    async def calculate_portfolio_precision(self, portfolio_id: int) -> float:
+        raise NotImplemented
+
+    @abc.abstractmethod
+    async def calculate_portfolio_recall(self, portfolio_id: int) -> float:
+        raise NotImplemented
+
+    @abc.abstractmethod
+    async def get_chart_data(self, portfolio_id: int, currency: Currency) -> List[Tuple[float, datetime]]:
+        raise NotImplemented
+
 
 class UserStorageManager(AbstractUserStorageManager):
     def __init__(self, user_id: int):
@@ -149,3 +163,15 @@ class UserStorageManager(AbstractUserStorageManager):
     async def add_state(self, state: StateSchema) -> StateSchema:
         state = await self.api_handler.post_object(StateSchema, state)
         return state
+
+    async def get_chart_data(self, portfolio_id: int, currency: Currency) -> List[Tuple[float, datetime]]:
+        chart_data = await self.api_handler.get_chart_data(portfolio_id, currency)
+        return chart_data
+
+    async def calculate_portfolio_recall(self, portfolio_id: int) -> float:
+        portfolio = await self.api_handler.calculate_recall(PortfolioSchema, portfolio_id)
+        return portfolio.last_recall
+
+    async def calculate_portfolio_precision(self, portfolio_id: int) -> float:
+        portfolio = await self.api_handler.calculate_precision(PortfolioSchema, portfolio_id)
+        return portfolio.last_precision
