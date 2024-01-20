@@ -8,4 +8,4 @@ services:
     env_file:
       - .env
     command: bash -c "cd /src && python3 bot.py"
-    restart: always
+    restart: unless-stopped
